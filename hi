@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Sub-Sheet Viewer with Multiple Link Types (CORS Proxy)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        #sheetNames button {
+            margin: 5px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #sheetNames button:hover {
+            background-color: #45a049;
+        }
+        #sheetDisplay {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Excel Sub-Sheet Viewer (CORS Proxy Enabled)</h2>
+
+    <!-- Input Excel File URL -->
+    <input type="text" id="fileUrl" placeholder="Enter the Excel file URL" style="width: 300px;" />
+    <button onclick="loadFileFromUrl()">Load Excel File</button>
+    <div id="sheetNames"></div>
+
+    <!-- Display selected sheet -->
+    <div id="sheetDisplay"></div>
+
+    <script>
+        // Function to detect and convert to direct download link if necessary
+        function getDirectLink(fileUrl) {
+            const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+
+            if (fileUrl.includes("drive.google.com")) {
+                // Google Drive link
+                const fileId = fileUrl.match(/[-\w]{25,}/); // Extract Google Drive file ID
+                return proxyUrl + `https://drive.google.com/uc?export=download&id=${fileId}`;
+            } else if (fileUrl.includes("dropbox.com")) {
+                // Dropbox link
+                return proxyUrl + fileUrl.replace("dl=0", "dl=1"); // Convert Dropbox link to direct download
+            } else if (fileUrl.includes("onedrive.live.com")) {
+                // OneDrive link
+                return proxyUrl + fileUrl.replace("/redir?", "/download?");
+            } else if (fileUrl.includes("github.com")) {
+                // GitHub link
+                return proxyUrl + fileUrl.replace("/blob/", "/raw/"); // Convert GitHub link to direct raw file
+            }
+            // Return the original link for generic web server links with the proxy URL
+            return proxyUrl + fileUrl;
+        }
+
+        // Load Excel file from the provided URL
+        function loadFileFromUrl() {
+            var fileUrl = document.getElementById('fileUrl').value;
+            var directLink = getDirectLink(fileUrl); // Convert to direct link with proxy if necessary
+
+            if (directLink) {
+                fetch(directLink)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok ' + response.statusText);
+                        }
+                        return response.arrayBuffer();
+                    })
+                    .then(data => {
+                        var workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+
+                        // Display all sheet names as buttons
+                        var sheetNames = workbook.SheetNames;
+                        var sheetList = '';
+                        sheetNames.forEach(function(sheetName) {
+                            sheetList += `<button onclick="loadSheet('${sheetName}')">${sheetName}</button><br/>`;
+                        });
+                        document.getElementById('sheetNames').innerHTML = sheetList;
+                    })
+                    .catch(error => {
+                        console.error('Error fetching the Excel file:', error);
+                        alert('Failed to fetch the file. Make sure the URL is correct and accessible.');
+                    });
+            } else {
+                alert('Please enter a valid URL');
+            }
+        }
+
+        // Load and display the selected sheet
+        function loadSheet(sheetName) {
+            var fileUrl = document.getElementById('fileUrl').value;
+            var directLink = getDirectLink(fileUrl); // Convert to direct link with proxy if necessary
+
+            if (directLink) {
+                fetch(directLink)
+                    .then(response => response.arrayBuffer())
+                    .then(data => {
+                        var workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+
+                        // Get the selected sheet
+                        var sheet = workbook.Sheets[sheetName];
+
+                        // Convert sheet to HTML table
+                        var html = XLSX.utils.sheet_to_html(sheet);
+
+                        // Display the HTML table
+                        document.getElementById('sheetDisplay').innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error('Error loading the sheet:', error);
+                    });
+            }
+        }
+    </script>
+
+</body>
+</html>
